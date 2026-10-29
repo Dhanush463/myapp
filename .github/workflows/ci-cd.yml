@@ -15,12 +15,30 @@ env:
 jobs:
   test:                                   # CI: runs on every push and PR
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: appdb
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: localpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U appuser -d appdb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21, cache: maven }
       - run: mvn -B verify
         working-directory: Backend/practice
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/appdb
+          SPRING_DATASOURCE_USERNAME: appuser
+          SPRING_DATASOURCE_PASSWORD: localpass
       - uses: actions/setup-node@v4
         with:
           node-version: 20
