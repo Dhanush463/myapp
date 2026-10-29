@@ -42,7 +42,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install && npm run build
+      - run: |
+          npm cache clean --force
+          npm install --legacy-peer-deps
+          npm run build
         working-directory: Frontend/employee-frontend
 
   deploy:                                 # CD: only on push to main, after tests pass
