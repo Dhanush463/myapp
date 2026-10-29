@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci && npm run build
+      - run: npm install && npm run build
         working-directory: Frontend/employee-frontend
 
   deploy:                                 # CD: only on push to main, after tests pass
