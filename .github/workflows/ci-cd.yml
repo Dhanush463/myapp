@@ -1,0 +1,86 @@
+name: ci-cd
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write     # required to request the OIDC token
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+
+jobs:
+  test:                                   # CI: runs on every push and PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: maven }
+      - run: mvn -B verify
+        working-directory: backend/practice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: frontend/employee-frontend
+
+  deploy:                                 # CD: only on push to main, after tests pass
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        run: |
+          REG=${{ steps.ecr.outputs.registry }}
+          TAG=${GITHUB_SHA::7}
+          docker build -t $REG/myapp-backend:$TAG  backend/practice
+          docker build -t $REG/myapp-frontend:$TAG frontend/employee-frontend
+          docker push $REG/myapp-backend:$TAG
+          docker push $REG/myapp-frontend:$TAG
+
+      - name: Deploy to k3s via SSM
+        run: |
+          REG=${{ steps.ecr.outputs.registry }}
+          TAG=${GITHUB_SHA::7}
+          ID=${{ vars.EC2_INSTANCE_ID }}
+          CMD="export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; \
+          kubectl -n myapp set image deploy/backend backend=$REG/myapp-backend:$TAG && \
+          kubectl -n myapp set image deploy/frontend frontend=$REG/myapp-frontend:$TAG && \
+          kubectl -n myapp rollout status deploy/backend --timeout=240s && \
+          kubectl -n myapp rollout status deploy/frontend --timeout=120s"
+
+          CMD_ID=$(aws ssm send-command --instance-ids $ID \
+            --document-name AWS-RunShellScript \
+            --parameters "{\"commands\":[\"$CMD\"]}" \
+            --query Command.CommandId --output text)
+
+          sleep 5
+          for i in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation --command-id $CMD_ID \
+              --instance-id $ID --query Status --output text || true)
+            echo "status: $STATUS"
+            case $STATUS in
+              Success) exit 0 ;;
+              Failed|Cancelled|TimedOut)
+                aws ssm get-command-invocation --command-id $CMD_ID --instance-id $ID \
+                  --query StandardErrorContent --output text
+                exit 1 ;;
+            esac
+            sleep 5
+          done
+          exit 1
