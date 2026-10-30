@@ -75,8 +75,8 @@ jobs:
         run: |
           REG=${{ steps.ecr.outputs.registry }}
           TAG=${GITHUB_SHA::7}
-          docker build -t $REG/myapp-backend:$TAG  backend/practice
-          docker build -t $REG/myapp-frontend:$TAG frontend/employee-frontend
+          docker build -t $REG/myapp-backend:$TAG  Backend/practice
+          docker build -t $REG/myapp-frontend:$TAG Frontend/employee-frontend
           docker push $REG/myapp-backend:$TAG
           docker push $REG/myapp-frontend:$TAG
 
