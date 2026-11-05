@@ -1,13 +1,11 @@
-# ---------- Stage 1: build ----------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
-RUN npm run build 
+RUN npm run build
 
-# ---------- Stage 2: serve ----------
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
