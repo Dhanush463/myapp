@@ -21,13 +21,13 @@ pipeline {
   stages {
     stage('Build backend image') {
       steps {
-        sh 'docker build -t $DOCKERHUB_USER/devops-backend:$TAG backend'
+        sh 'docker build -t $DOCKERHUB_USER/devops-backend:$TAG Backend/practice'
       }
     }
 
     stage('Build frontend image') {
       steps {
-        sh 'docker build -t $DOCKERHUB_USER/devops-frontend:$TAG frontend'
+        sh 'docker build -t $DOCKERHUB_USER/devops-frontend:$TAG Frontend/employee-frontend'
       }
     }
 
